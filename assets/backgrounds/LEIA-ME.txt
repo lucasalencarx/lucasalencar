@@ -1,0 +1,3 @@
+Tema claro: orla-dia-hd.png (aprimorada).
+Tema escuro: orla-login.png.
+Troque os caminhos em login-config.js para usar outras imagens.

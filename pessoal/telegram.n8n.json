@@ -1,0 +1,263 @@
+{
+  "name": "Lucas Alencar — Alertas pessoais Telegram",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Teste manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "* * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "A cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "80cc2d81-231f-4da9-989c-22579aaad2c1",
+              "name": "supabaseUrl",
+              "value": "https://SEU_PROJETO.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "168b783a-5e3b-404f-a02c-da6fd5683ff6",
+              "name": "ownerId",
+              "value": "SEU_UUID_AUTH_USERS",
+              "type": "string"
+            },
+            {
+              "id": "1fd1975c-a03a-4c07-8ba9-d21671542a29",
+              "name": "fuso",
+              "value": "America/Sao_Paulo",
+              "type": "string"
+            },
+            {
+              "id": "9a9a1adf-2a35-4633-abfa-3f39e99ac768",
+              "name": "chatId",
+              "value": "SEU_CHAT_ID_PRIVADO",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config",
+      "name": "Configurar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Configurar').first().json.supabaseUrl + '/rest/v1/rpc/personal_claim_alerts' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_owner:$json.ownerId,p_timezone:$json.fuso}) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "1d4f9be3-ae1e-4638-a2e2-951f58ca846e",
+      "name": "Reservar alertas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Configurar').first().json.supabaseUrl + '/rest/v1/rpc/personal_prepare_alerts' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_ids:$input.all().map(i=>i.json.id).filter(Boolean),p_timezone:$('Configurar').first().json.fuso}) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "bd9e9947-44a3-4bd9-9626-c9e42f4944b8",
+      "name": "Revalidar pendências",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        630,
+        100
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs=$input.all().map(i=>i.json).filter(j=>j.id && j.status==='claimed');\nif(!jobs.length)return [];\nconst cfg=$('Configurar').first().json;\nif(!/^-?\\d+$/.test(cfg.chatId))throw new Error('Configure o Chat ID privado.');\nreturn [{json:{ids:jobs.map(j=>j.id),chatId:cfg.chatId,text:'Lucas Alencar • Lembretes\\n\\n'+jobs.map(j=>String(j.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('\\n\\n— — —\\n\\n')}}];"
+      },
+      "id": "digest",
+      "name": "Montar resumo privado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send",
+      "name": "Enviar para meu Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1050,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Configurar').first().json.supabaseUrl + '/rest/v1/rpc/personal_finish_alerts' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_ids:$('Montar resumo privado').first().json.ids,p_message_id:String($json.message_id || $json.result?.message_id || '')}) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "9d810104-fa76-40a5-865a-ed06f07cb0a9",
+      "name": "Confirmar envio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Teste manual": {
+      "main": [
+        [
+          {
+            "node": "Configurar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A cada minuto": {
+      "main": [
+        [
+          {
+            "node": "Configurar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configurar": {
+      "main": [
+        [
+          {
+            "node": "Reservar alertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar alertas": {
+      "main": [
+        [
+          {
+            "node": "Revalidar pendências",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revalidar pendências": {
+      "main": [
+        [
+          {
+            "node": "Montar resumo privado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar resumo privado": {
+      "main": [
+        [
+          {
+            "node": "Enviar para meu Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar para meu Telegram": {
+      "main": [
+        [
+          {
+            "node": "Confirmar envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "America/Sao_Paulo",
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none"
+  },
+  "active": false,
+  "pinData": {}
+}

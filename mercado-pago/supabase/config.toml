@@ -1,0 +1,9 @@
+project_id = "pinguin-la"
+[functions.mp-create]
+verify_jwt = true
+[functions.mp-sync]
+verify_jwt = true
+[functions.mp-webhook]
+verify_jwt = false
+[functions.mp-reconcile]
+verify_jwt = false

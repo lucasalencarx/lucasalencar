@@ -1,0 +1,205 @@
+{
+  "name": "Pinguin LA — resumo diário privado",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Testar manualmente",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Diariamente às 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a5f46dcf-130e-49de-9a78-7313794a5655",
+              "name": "supabaseUrl",
+              "value": "https://SEU_PROJETO.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "7d419f0c-1320-43fd-8e6a-fd94d28ad7ff",
+              "name": "ownerId",
+              "value": "SEU_UUID_EM_AUTH_USERS",
+              "type": "string"
+            },
+            {
+              "id": "5b1b2ad9-b600-4fa3-810b-147ec21f0f9f",
+              "name": "fuso",
+              "value": "America/Sao_Paulo",
+              "type": "string"
+            },
+            {
+              "id": "aacdcc09-16fa-4b8f-8e23-bde16d4fe202",
+              "name": "emailRemetente",
+              "value": "SEU_REMETENTE@example.com",
+              "type": "string"
+            },
+            {
+              "id": "b10c86ff-ed5f-49f9-bc74-6745c8f3a1da",
+              "name": "emailDestino",
+              "value": "SEU_EMAIL@example.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config",
+      "name": "Configurar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        250,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.supabaseUrl + '/rest/v1/rpc/pinguin_daily_due' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_owner:$json.ownerId,p_timezone:$json.fuso}) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "query",
+      "name": "Buscar hoje e atrasados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows=$input.all().map(i=>i.json).flat().filter(r=>r.id && Number(r.principal)+Number(r.interest)>0);\nif (!rows.length) return [];\nconst cfg=$('Configurar').first().json;\nif(!cfg.emailDestino || cfg.emailDestino.includes('SEU_')) throw new Error('Configure seu e-mail no nó Configurar.');\nconst money=n=>Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});\nconst day=new Date().toLocaleDateString('pt-BR',{timeZone:cfg.fuso});\nconst text=['Pinguin LA — Hoje e atrasados',day,'',...rows.map(r=>`${r.name} | ${r.status} | Vencimento: ${r.due} | Saldo: ${money(Number(r.principal)+Number(r.interest))}`),'',`Total: ${money(rows.reduce((s,r)=>s+Number(r.principal)+Number(r.interest),0))}`,'','Abra o Pinguin LA para conferir o saldo atualizado. Este resumo é para você; nenhum devedor recebe esta mensagem.'].join('\\n');\nreturn [{json:{from:cfg.emailRemetente,to:cfg.emailDestino,subject:`Pinguin LA • ${rows.length} pendência(s) • ${day}`,text}}];"
+      },
+      "id": "digest",
+      "name": "Preparar resumo privado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.from }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {}
+      },
+      "id": "email",
+      "name": "Enviar resumo para mim",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Testar manualmente": {
+      "main": [
+        [
+          {
+            "node": "Configurar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diariamente às 9h": {
+      "main": [
+        [
+          {
+            "node": "Configurar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configurar": {
+      "main": [
+        [
+          {
+            "node": "Buscar hoje e atrasados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar hoje e atrasados": {
+      "main": [
+        [
+          {
+            "node": "Preparar resumo privado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar resumo privado": {
+      "main": [
+        [
+          {
+            "node": "Enviar resumo para mim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
